@@ -2,7 +2,7 @@
 from datetime import date
 from decimal import Decimal
 from pydantic import BaseModel, Field, field_validator
-from typing import Literal
+from typing import Literal, Optional
 
 
 TipoTransacao = Literal["entrada", "saida"]
@@ -14,6 +14,7 @@ class TransacaoBase(BaseModel):
     descricao: str = Field(min_length=1, max_length=200)
     valor: Decimal = Field(gt=0, decimal_places=2)
     tipo: TipoTransacao
+    categoria_id: Optional[int] = Field(default=None, ge=1)
 
     @field_validator("valor", mode="before")
     @classmethod

@@ -1,67 +1,108 @@
 """Rotas para transações."""
-from fastapi import APIRouter, HTTPException, status
+import sqlite3
+from fastapi import APIRouter, HTTPException, Query, status
 from database import get_connection
 from models import TransacaoCreate, TransacaoResponse
 
 router = APIRouter(prefix="/transacoes", tags=["transacoes"])
 
 
+def _validar_categoria_id(conn, categoria_id: int | None) -> None:
+    """Valida se o categoria_id existe. Lança 422 se inválido."""
+    if categoria_id is not None:
+        row = conn.execute(
+            "SELECT id FROM categorias WHERE id = ?",
+            (categoria_id,)
+        ).fetchone()
+        if not row:
+            raise HTTPException(
+                status_code=status.HTTP_422_UNPROCESSABLE_ENTITY,
+                detail="Categoria não encontrada"
+            )
+
+
+def _row_para_response(row: sqlite3.Row) -> TransacaoResponse:
+    """Converte row do banco para TransacaoResponse."""
+    return TransacaoResponse(
+        id=row["id"],
+        data=row["data"],
+        descricao=row["descricao"],
+        valor=row["valor"],
+        tipo=row["tipo"],
+        categoria_id=row["categoria_id"]
+    )
+
+
 @router.post("", response_model=TransacaoResponse, status_code=status.HTTP_201_CREATED)
 def criar_transacao(transacao: TransacaoCreate) -> TransacaoResponse:
     """Registra uma nova transação."""
     with get_connection() as conn:
+        _validar_categoria_id(conn, transacao.categoria_id)
+
         cursor = conn.execute(
             """
-            INSERT INTO transacoes (data, descricao, valor, tipo)
-            VALUES (?, ?, ?, ?)
+            INSERT INTO transacoes (data, descricao, valor, tipo, categoria_id)
+            VALUES (?, ?, ?, ?, ?)
             """,
-            (transacao.data.isoformat(), transacao.descricao, float(transacao.valor), transacao.tipo)
+            (transacao.data.isoformat(), transacao.descricao, float(transacao.valor), transacao.tipo, transacao.categoria_id)
         )
         conn.commit()
         transacao_id = cursor.lastrowid
 
-        # Busca a transação criada para retornar com o id
         row = conn.execute(
-            "SELECT id, data, descricao, valor, tipo FROM transacoes WHERE id = ?",
+            "SELECT id, data, descricao, valor, tipo, categoria_id FROM transacoes WHERE id = ?",
             (transacao_id,)
         ).fetchone()
 
-        return TransacaoResponse(
-            id=row["id"],
-            data=row["data"],
-            descricao=row["descricao"],
-            valor=row["valor"],
-            tipo=row["tipo"]
-        )
+        return _row_para_response(row)
 
 
 @router.get("", response_model=list[TransacaoResponse])
-def listar_transacoes() -> list[TransacaoResponse]:
-    """Lista todas as transações, mais recentes primeiro."""
+def listar_transacoes(categoria: str | None = Query(default=None, description="Filtrar por nome ou ID da categoria")) -> list[TransacaoResponse]:
+    """Lista todas as transações, mais recentes primeiro. Opcionalmente filtra por categoria."""
     with get_connection() as conn:
-        rows = conn.execute(
-            "SELECT id, data, descricao, valor, tipo FROM transacoes ORDER BY data DESC"
-        ).fetchall()
+        if categoria is not None:
+            # Tenta interpretar como ID primeiro, senão como nome
+            try:
+                cat_id = int(categoria)
+                rows = conn.execute(
+                    """
+                    SELECT t.id, t.data, t.descricao, t.valor, t.tipo, t.categoria_id
+                    FROM transacoes t
+                    WHERE t.categoria_id = ?
+                    ORDER BY t.data DESC
+                    """,
+                    (cat_id,)
+                ).fetchall()
+            except ValueError:
+                # É um nome
+                rows = conn.execute(
+                    """
+                    SELECT t.id, t.data, t.descricao, t.valor, t.tipo, t.categoria_id
+                    FROM transacoes t
+                    JOIN categorias c ON t.categoria_id = c.id
+                    WHERE c.nome = ?
+                    ORDER BY t.data DESC
+                    """,
+                    (categoria,)
+                ).fetchall()
+        else:
+            rows = conn.execute(
+                "SELECT id, data, descricao, valor, tipo, categoria_id FROM transacoes ORDER BY data DESC"
+            ).fetchall()
 
-        return [
-            TransacaoResponse(
-                id=row["id"],
-                data=row["data"],
-                descricao=row["descricao"],
-                valor=row["valor"],
-                tipo=row["tipo"]
-            )
-            for row in rows
-        ]
+        return [_row_para_response(row) for row in rows]
 
 
 @router.put("/{transacao_id}", response_model=TransacaoResponse)
 def atualizar_transacao(transacao_id: int, transacao: TransacaoCreate) -> TransacaoResponse:
     """Atualiza uma transação existente."""
     with get_connection() as conn:
+        _validar_categoria_id(conn, transacao.categoria_id)
+
         # Verifica se a transação existe
         row = conn.execute(
-            "SELECT id, data, descricao, valor, tipo FROM transacoes WHERE id = ?",
+            "SELECT id FROM transacoes WHERE id = ?",
             (transacao_id,)
         ).fetchone()
 
@@ -72,26 +113,20 @@ def atualizar_transacao(transacao_id: int, transacao: TransacaoCreate) -> Transa
         conn.execute(
             """
             UPDATE transacoes
-            SET data = ?, descricao = ?, valor = ?, tipo = ?
+            SET data = ?, descricao = ?, valor = ?, tipo = ?, categoria_id = ?
             WHERE id = ?
             """,
-            (transacao.data.isoformat(), transacao.descricao, float(transacao.valor), transacao.tipo, transacao_id)
+            (transacao.data.isoformat(), transacao.descricao, float(transacao.valor), transacao.tipo, transacao.categoria_id, transacao_id)
         )
         conn.commit()
 
         # Busca a transação atualizada para retornar
         row = conn.execute(
-            "SELECT id, data, descricao, valor, tipo FROM transacoes WHERE id = ?",
+            "SELECT id, data, descricao, valor, tipo, categoria_id FROM transacoes WHERE id = ?",
             (transacao_id,)
         ).fetchone()
 
-        return TransacaoResponse(
-            id=row["id"],
-            data=row["data"],
-            descricao=row["descricao"],
-            valor=row["valor"],
-            tipo=row["tipo"]
-        )
+        return _row_para_response(row)
 
 
 @router.delete("/{transacao_id}", status_code=status.HTTP_204_NO_CONTENT)
