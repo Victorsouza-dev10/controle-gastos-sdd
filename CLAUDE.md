@@ -18,6 +18,10 @@
 - `tipo` restrito a `"entrada"` ou `"saida"` (CHECK constraint no banco + Literal no Pydantic)
 - Erros de validação: HTTP 422 com formato padrão do FastAPI/Pydantic (`detail` array com objetos de erro); **não** usa formato custom `{ "erro": "..." }`
 
+### Decisões de Design — Categorias (Aula 3+)
+- **Categoria em transação: OPCIONAL** (`categoria_id INTEGER NULL REFERENCES categorias(id)`). Usuário pode lançar sem categorizar; evita atrito no uso inicial.
+- **Filtrar por categoria inexistente: retorna lista vazia (HTTP 200)**. Filtro é query param, não recurso; sem match → `[]` + 200. `GET /categorias/{id}` inexistente continua 404.
+
 ### Como Rodar
 ```bash
 pip install -r requirements.txt
