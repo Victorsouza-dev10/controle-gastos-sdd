@@ -1,7 +1,7 @@
 """Entry point da aplicação FastAPI."""
 from fastapi import FastAPI
 from database import init_db
-from routes import transacoes_router, categorias_router
+from routes import transacoes_router, categorias_router, saldo_router
 
 app = FastAPI(title="Controle de Gastos Pessoais")
 
@@ -14,6 +14,7 @@ def startup() -> None:
 
 app.include_router(transacoes_router)
 app.include_router(categorias_router)
+app.include_router(saldo_router)
 
 
 if __name__ == "__main__":

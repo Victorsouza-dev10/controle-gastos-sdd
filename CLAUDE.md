@@ -32,6 +32,19 @@
 - **Migração**: coluna `categoria_id` adicionada via ALTER TABLE se não existir (compatibilidade com transações antigas)
 - **Índices**: `idx_transacoes_data` (DESC), `idx_transacoes_categoria_id`
 
+### Aula 4 - Saldo e Resumo Mensal
+- **Models**: SaldoResponse, ResumoCategoria, ResumoResponse (Decimal com 2 casas decimais)
+- **Endpoints**:
+  - `GET /saldo` — retorna `{ entradas, saidas, saldo }` de todas as transações
+  - `GET /resumo?mes=YYYY-MM` — retorna `{ mes, entradas, saidas, saldo, por_categoria: [{categoria, total}] }`
+- **Queries SQL (agregações, sem loops Python)**:
+  - **Saldo total**: `SUM(CASE WHEN tipo='entrada' THEN valor ELSE 0 END)` e `SUM(CASE WHEN tipo='saida' THEN valor ELSE 0 END)` com `COALESCE(..., 0)`
+  - **Resumo mensal**: filtro `strftime('%Y-%m', data) = ?` + mesma agregação condicional
+  - **Por categoria**: `LEFT JOIN categorias` + `GROUP BY c.nome` + `COALESCE(c.nome, 'Sem categoria')` — apenas saídas (`tipo='saida'`)
+- **Validação de `mes`**: regex `^\d{4}-\d{2}$` + verificação 01-12; retorna 422 se inválido
+- **Arredondamento**: `Decimal.quantize(Decimal("0.01"))` em todos os valores monetários
+- **Mês sem dados**: retorna zeros e `por_categoria: []` (HTTP 200)
+
 ### Convenções de API
 - Datas no formato ISO `YYYY-MM-DD` (serializadas via `date.isoformat()`)
 - Valores monetários: `Decimal` com 2 casas decimais no modelo, `float` no SQLite
@@ -57,7 +70,5 @@ uvicorn main:app --reload
 - `POST /categorias` — cria categoria, retorna 201 com objeto (inclui `id`)
 - `GET /categorias` — lista categorias ordenadas por nome
 - `GET /transacoes?categoria=<nome ou id>` — filtra por categoria (nome ou ID)
-
-### Endpoints Planejados (Aula 4 - não implementados ainda)
 - `GET /saldo` — retorna `{ entradas, saidas, saldo }` de todas as transações
-- `GET /resumo?mes=YYYY-MM` — retorna resumo mensal com quebra por categoria
+- `GET /resumo?mes=YYYY-MM` — retorna `{ mes, entradas, saidas, saldo, por_categoria: [{categoria, total}] }`
