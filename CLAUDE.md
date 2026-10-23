@@ -45,6 +45,26 @@
 - **Arredondamento**: `Decimal.quantize(Decimal("0.01"))` em todos os valores monetários
 - **Mês sem dados**: retorna zeros e `por_categoria: []` (HTTP 200)
 
+### Aula 5 - Filtros Avançados e Testes Automatizados
+- **Novos parâmetros em `GET /transacoes`** (todos opcionais, combinados por AND lógico):
+  - `categoria` (str) — nome ou ID da categoria
+  - `data_inicio` (date, ISO `YYYY-MM-DD`) — data inicial do período
+  - `data_fim` (date, ISO `YYYY-MM-DD`) — data final do período
+  - `valor_min` (Decimal, ge=0) — valor mínimo
+  - `valor_max` (Decimal, ge=0) — valor máximo
+- **Validações de filtro** (retornam 422):
+  - `data_inicio` > `data_fim` → "data_inicio não pode ser maior que data_fim"
+  - `valor_min` > `valor_max` → "valor_min não pode ser maior que valor_max"
+- **Query dinâmica segura**: construção de WHERE clauses com parâmetros vinculados (`?`), sem concatenação de SQL
+- **JOIN condicional**: adiciona `JOIN categorias` apenas quando filtra por nome de categoria
+- **Estrutura de testes** (`tests/`):
+  - `conftest.py` — fixtures: banco temporário (tempfile), `test_app` com override de `get_connection`, `client` (TestClient), `db_conn` para setup/teardown
+  - `test_transacoes.py` — CRUD + filtros (categoria, período, faixa de valor, combinado)
+  - `test_categorias.py` — CRUD categorias
+  - `test_saldo_resumo.py` — saldo e resumo mensal
+  - `test_erros.py` — validações (422) e recursos não encontrados (404)
+- **Isolamento**: cada teste usa banco limpo; banco de produção nunca é afetado
+
 ### Convenções de API
 - Datas no formato ISO `YYYY-MM-DD` (serializadas via `date.isoformat()`)
 - Valores monetários: `Decimal` com 2 casas decimais no modelo, `float` no SQLite
@@ -62,9 +82,19 @@ pip install -r requirements.txt
 uvicorn main:app --reload
 ```
 
+### Testes
+```bash
+pytest tests/ -v
+```
+
 ### Endpoints Implementados
 - `POST /transacoes` — cria transação, retorna 201 com objeto (inclui `id`)
-- `GET /transacoes` — lista todas ordenadas por `data DESC`
+- `GET /transacoes` — lista todas ordenadas por `data DESC`; aceita filtros opcionais combinados por AND:
+  - `categoria` (nome ou ID)
+  - `data_inicio` (YYYY-MM-DD)
+  - `data_fim` (YYYY-MM-DD)
+  - `valor_min` (Decimal ≥ 0)
+  - `valor_max` (Decimal ≥ 0)
 - `PUT /transacoes/{id}` — atualiza transação, retorna 200 com objeto atualizado
 - `DELETE /transacoes/{id}` — exclui transação, retorna 204
 - `POST /categorias` — cria categoria, retorna 201 com objeto (inclui `id`)

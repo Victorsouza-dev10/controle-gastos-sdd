@@ -1,5 +1,7 @@
 """Rotas para transações."""
 import sqlite3
+from datetime import date
+from decimal import Decimal
 from fastapi import APIRouter, HTTPException, Query, status
 from database import get_connection
 from models import TransacaoCreate, TransacaoResponse
@@ -58,38 +60,72 @@ def criar_transacao(transacao: TransacaoCreate) -> TransacaoResponse:
 
 
 @router.get("", response_model=list[TransacaoResponse])
-def listar_transacoes(categoria: str | None = Query(default=None, description="Filtrar por nome ou ID da categoria")) -> list[TransacaoResponse]:
-    """Lista todas as transações, mais recentes primeiro. Opcionalmente filtra por categoria."""
+def listar_transacoes(
+    categoria: str | None = Query(default=None, description="Filtrar por nome ou ID da categoria"),
+    data_inicio: date | None = Query(default=None, description="Data inicial no formato YYYY-MM-DD"),
+    data_fim: date | None = Query(default=None, description="Data final no formato YYYY-MM-DD"),
+    valor_min: Decimal | None = Query(default=None, description="Valor mínimo", ge=0),
+    valor_max: Decimal | None = Query(default=None, description="Valor máximo", ge=0),
+) -> list[TransacaoResponse]:
+    """Lista todas as transações, mais recentes primeiro. Opcionalmente filtra por categoria, período e faixa de valor."""
+    # Validações de período e faixa de valor
+    if data_inicio is not None and data_fim is not None and data_inicio > data_fim:
+        raise HTTPException(
+            status_code=status.HTTP_422_UNPROCESSABLE_ENTITY,
+            detail="data_inicio não pode ser maior que data_fim"
+        )
+    if valor_min is not None and valor_max is not None and valor_min > valor_max:
+        raise HTTPException(
+            status_code=status.HTTP_422_UNPROCESSABLE_ENTITY,
+            detail="valor_min não pode ser maior que valor_max"
+        )
+
     with get_connection() as conn:
+        # Construir query dinamicamente
+        where_clauses = []
+        params = []
+
         if categoria is not None:
-            # Tenta interpretar como ID primeiro, senão como nome
             try:
                 cat_id = int(categoria)
-                rows = conn.execute(
-                    """
-                    SELECT t.id, t.data, t.descricao, t.valor, t.tipo, t.categoria_id
-                    FROM transacoes t
-                    WHERE t.categoria_id = ?
-                    ORDER BY t.data DESC
-                    """,
-                    (cat_id,)
-                ).fetchall()
+                where_clauses.append("t.categoria_id = ?")
+                params.append(cat_id)
             except ValueError:
-                # É um nome
-                rows = conn.execute(
-                    """
-                    SELECT t.id, t.data, t.descricao, t.valor, t.tipo, t.categoria_id
-                    FROM transacoes t
-                    JOIN categorias c ON t.categoria_id = c.id
-                    WHERE c.nome = ?
-                    ORDER BY t.data DESC
-                    """,
-                    (categoria,)
-                ).fetchall()
+                where_clauses.append("c.nome = ?")
+                params.append(categoria)
+
+        if data_inicio is not None:
+            where_clauses.append("t.data >= ?")
+            params.append(data_inicio.isoformat())
+
+        if data_fim is not None:
+            where_clauses.append("t.data <= ?")
+            params.append(data_fim.isoformat())
+
+        if valor_min is not None:
+            where_clauses.append("t.valor >= ?")
+            params.append(float(valor_min))
+
+        if valor_max is not None:
+            where_clauses.append("t.valor <= ?")
+            params.append(float(valor_max))
+
+        # Montar query base
+        base_query = """
+            SELECT t.id, t.data, t.descricao, t.valor, t.tipo, t.categoria_id
+            FROM transacoes t
+        """
+
+        # Se filtra por categoria nome, precisa do JOIN
+        if categoria is not None and not categoria.isdigit():
+            base_query = base_query.replace("FROM transacoes t", "FROM transacoes t JOIN categorias c ON t.categoria_id = c.id")
+
+        if where_clauses:
+            query = base_query + " WHERE " + " AND ".join(where_clauses) + " ORDER BY t.data DESC"
         else:
-            rows = conn.execute(
-                "SELECT id, data, descricao, valor, tipo, categoria_id FROM transacoes ORDER BY data DESC"
-            ).fetchall()
+            query = base_query + " ORDER BY t.data DESC"
+
+        rows = conn.execute(query, params).fetchall()
 
         return [_row_para_response(row) for row in rows]
 
