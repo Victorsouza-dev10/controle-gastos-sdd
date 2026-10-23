@@ -67,7 +67,16 @@ def test_app(test_db_path):
     # Inicializar o banco de teste ANTES de importar a app
     _init_test_db(test_db_path)
 
-    # Patch do DB_PATH no database.connection ANTES de importar main
+    # Configurar DATABASE_URL para o banco de teste ANTES de importar config/main
+    import os
+    os.environ["DATABASE_URL"] = f"sqlite:///{test_db_path}"
+
+    # Invalidar cache do módulo config para recarregar settings
+    import config
+    import importlib
+    importlib.reload(config)
+
+    # Patch do DB_PATH no database.connection (para compatibilidade com código legado)
     import database.connection as db_conn_module
     original_db_path = db_conn_module.DB_PATH
     db_conn_module.DB_PATH = test_db_path

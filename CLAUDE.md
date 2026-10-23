@@ -65,6 +65,21 @@
   - `test_erros.py` — validações (422) e recursos não encontrados (404)
 - **Isolamento**: cada teste usa banco limpo; banco de produção nunca é afetado
 
+### Aula 6 - Exportação CSV, Dashboard e Deploy
+- **Exportação CSV**: `GET /export.csv` — retorna extrato em CSV (`Content-Type: text/csv`), aceita os mesmos filtros do `GET /transacoes`
+  - Usa biblioteca padrão `csv` e `io.StringIO`
+  - Colunas: id, data, descricao, valor, tipo, categoria_id, categoria_nome
+  - Header `Content-Disposition: attachment; filename=extrato.csv` para download
+- **Dashboard HTML**: `GET /dashboard` (e `GET /` redireciona) — serve página HTML estática
+  - Gráfico de gastos por categoria (donut chart) via Chart.js CDN
+  - Cards de saldo: entradas, saídas, saldo total (consome `/saldo`)
+  - JavaScript faz fetch para `/saldo` e `/resumo?mes=YYYY-MM` (mês atual)
+- **Configuração via variáveis de ambiente** (`config.py` com `pydantic-settings`):
+  - `HOST` (default: "0.0.0.0"), `PORT` (default: 8000), `DEBUG` (default: true)
+  - `DATABASE_URL` (default: "sqlite:///./transacoes.db") — suporta SQLite local
+  - Arquivo `.env` opcional para desenvolvimento
+- **Deploy**: `uvicorn main:app` lê configurações do `settings`; sem credenciais hardcoded
+
 ### Convenções de API
 - Datas no formato ISO `YYYY-MM-DD` (serializadas via `date.isoformat()`)
 - Valores monetários: `Decimal` com 2 casas decimais no modelo, `float` no SQLite
@@ -102,3 +117,6 @@ pytest tests/ -v
 - `GET /transacoes?categoria=<nome ou id>` — filtra por categoria (nome ou ID)
 - `GET /saldo` — retorna `{ entradas, saidas, saldo }` de todas as transações
 - `GET /resumo?mes=YYYY-MM` — retorna `{ mes, entradas, saidas, saldo, por_categoria: [{categoria, total}] }`
+- `GET /export.csv` — exporta transações em CSV (mesmos filtros do GET /transacoes)
+- `GET /dashboard` — serve dashboard HTML com gráfico de gastos por categoria e cards de saldo
+- `GET /` — redireciona para `/dashboard`

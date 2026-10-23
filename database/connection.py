@@ -1,13 +1,25 @@
 """Conexão e inicialização do banco SQLite."""
 import sqlite3
 from pathlib import Path
+from config import settings
 
+# Default path for SQLite file
 DB_PATH = Path(__file__).parent.parent / "transacoes.db"
+
+
+def _get_db_path() -> Path:
+    """Extrai o caminho do arquivo SQLite da DATABASE_URL."""
+    db_url = settings.database_url
+    if db_url.startswith("sqlite:///"):
+        # Remove "sqlite:///" prefix and convert to Path
+        path_str = db_url.replace("sqlite:///", "")
+        return Path(path_str)
+    return DB_PATH
 
 
 def get_connection() -> sqlite3.Connection:
     """Retorna uma conexão SQLite com row_factory para acesso por nome de coluna."""
-    conn = sqlite3.connect(DB_PATH)
+    conn = sqlite3.connect(_get_db_path())
     conn.row_factory = sqlite3.Row
     return conn
 
