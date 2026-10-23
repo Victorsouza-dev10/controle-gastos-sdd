@@ -80,6 +80,18 @@
   - Arquivo `.env` opcional para desenvolvimento
 - **Deploy**: `uvicorn main:app` lê configurações do `settings`; sem credenciais hardcoded
 
+### Aula 7 - Refatorar Dashboard (Separar HTML, CSS e JS)
+- **Arquivos estáticos**: pasta `static/` servida via `StaticFiles` em `/static`
+  - `static/style.css` — todo o CSS extraído do dashboard (sem alterações visuais)
+  - `static/app.js` — todo o JavaScript extraído (usa `DOMContentLoaded` para init)
+  - `static/index.html` — HTML limpo sem `<style>` nem `<script>` inline
+    - Referencia CSS via `<link rel="stylesheet" href="/static/style.css">`
+    - Referencia JS via `<script src="/static/app.js" defer></script>`
+    - Chart.js continua via CDN no `<head>`
+- **Rota `GET /`**: serve `static/index.html` via `FileResponse` (sem redirecionamento)
+- **Rota `GET /dashboard`**: removida (era alias para `/`)
+- **Objetivo**: organização do front-end para facilitar manutenção, sem mudança de comportamento
+
 ### Convenções de API
 - Datas no formato ISO `YYYY-MM-DD` (serializadas via `date.isoformat()`)
 - Valores monetários: `Decimal` com 2 casas decimais no modelo, `float` no SQLite
@@ -96,6 +108,42 @@
 pip install -r requirements.txt
 uvicorn main:app --reload
 ```
+
+### Deploy (variáveis de ambiente)
+A aplicação usa `pydantic-settings` para configuração via variáveis de ambiente. Crie um arquivo `.env` na raiz do projeto ou exporte as variáveis diretamente:
+
+**Variáveis disponíveis:**
+- `HOST` — endereço de bind (default: `0.0.0.0`)
+- `PORT` — porta do servidor (default: `8000`)
+- `DEBUG` — modo debug com reload automático (default: `true`)
+- `DATABASE_URL` — URL do banco SQLite (default: `sqlite:///./transacoes.db`)
+
+**Exemplos:**
+
+```bash
+# Desenvolvimento com .env
+echo "HOST=0.0.0.0
+PORT=8000
+DEBUG=true
+DATABASE_URL=sqlite:///./transacoes.db" > .env
+uvicorn main:app
+```
+
+```bash
+# Produção sem .env (variáveis inline)
+HOST=0.0.0.0 PORT=8080 DEBUG=false DATABASE_URL=sqlite:///./prod.db uvicorn main:app
+```
+
+```bash
+# Docker (exemplo)
+docker run -e HOST=0.0.0.0 -e PORT=8080 -e DEBUG=false -e DATABASE_URL=sqlite:///./data/transacoes.db -v $(pwd)/data:/app/data minha-imagem
+```
+
+**Notas:**
+- O arquivo `.env` é opcional; valores padrão funcionam para desenvolvimento
+- `DATABASE_URL` deve usar o esquema `sqlite:///` seguido do caminho absoluto ou relativo
+- Em produção, defina `DEBUG=false` para desabilitar reload automático
+- Nenhuma credencial sensível é hardcoded no código
 
 ### Testes
 ```bash
@@ -118,5 +166,6 @@ pytest tests/ -v
 - `GET /saldo` — retorna `{ entradas, saidas, saldo }` de todas as transações
 - `GET /resumo?mes=YYYY-MM` — retorna `{ mes, entradas, saidas, saldo, por_categoria: [{categoria, total}] }`
 - `GET /export.csv` — exporta transações em CSV (mesmos filtros do GET /transacoes)
-- `GET /dashboard` — serve dashboard HTML com gráfico de gastos por categoria e cards de saldo
-- `GET /` — redireciona para `/dashboard`
+- `GET /` — serve dashboard HTML (index.html) com gráfico de gastos por categoria e cards de saldo
+- `GET /static/style.css` — arquivo CSS do dashboard
+- `GET /static/app.js` — arquivo JavaScript do dashboard

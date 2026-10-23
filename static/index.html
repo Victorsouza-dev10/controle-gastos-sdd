@@ -1,0 +1,44 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Dashboard - Controle de Gastos Pessoais</title>
+    <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.1/dist/chart.umd.min.js"></script>
+    <link rel="stylesheet" href="/static/style.css">
+</head>
+<body>
+    <div class="container">
+        <header>
+            <h1>Dashboard Financeiro</h1>
+            <p class="subtitle">Visão geral dos seus gastos e saldo</p>
+        </header>
+
+        <div class="cards">
+            <div class="card entradas">
+                <h3>Entradas</h3>
+                <div class="value" id="entradas">R$ 0,00</div>
+            </div>
+            <div class="card saidas">
+                <h3>Saídas</h3>
+                <div class="value" id="saidas">R$ 0,00</div>
+            </div>
+            <div class="card saldo" id="saldo-card">
+                <h3>Saldo</h3>
+                <div class="value" id="saldo">R$ 0,00</div>
+            </div>
+        </div>
+
+        <div class="chart-container">
+            <h2>Gastos por Categoria (Mês Atual)</h2>
+            <div class="chart-wrapper">
+                <canvas id="gastosChart"></canvas>
+            </div>
+            <div id="chart-loading" class="loading">Carregando gráfico...</div>
+            <div id="chart-error" class="error" style="display: none;"></div>
+        </div>
+    </div>
+
+    <script src="/static/app.js" defer></script>
+</body>
+</html>

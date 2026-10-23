@@ -1,9 +1,11 @@
 """Rotas para exportação CSV e dashboard."""
 import csv
 import io
+import os
 from datetime import date
 from decimal import Decimal
 from fastapi import APIRouter, HTTPException, Query, Response, status
+from fastapi.responses import FileResponse
 from database import get_connection
 
 router = APIRouter(tags=["export", "dashboard"])
@@ -136,26 +138,11 @@ def exportar_csv(
     )
 
 
-@router.get("/dashboard")
-def dashboard() -> Response:
-    """
-    Serve o dashboard HTML estático.
-    """
-    # Ler o arquivo HTML
-    import os
-    html_path = os.path.join(os.path.dirname(__file__), "..", "static", "dashboard.html")
-    html_path = os.path.abspath(html_path)
-
-    with open(html_path, "r", encoding="utf-8") as f:
-        html_content = f.read()
-
-    return Response(content=html_content, media_type="text/html; charset=utf-8")
-
-
 @router.get("/")
-def root() -> Response:
+def root() -> FileResponse:
     """
-    Redireciona para o dashboard.
+    Serve o dashboard HTML (index.html).
     """
-    from fastapi.responses import RedirectResponse
-    return RedirectResponse(url="/dashboard")
+    html_path = os.path.join(os.path.dirname(__file__), "..", "static", "index.html")
+    html_path = os.path.abspath(html_path)
+    return FileResponse(html_path, media_type="text/html; charset=utf-8")

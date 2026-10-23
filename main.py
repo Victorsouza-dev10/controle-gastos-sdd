@@ -1,5 +1,6 @@
 """Entry point da aplicação FastAPI."""
 from fastapi import FastAPI
+from fastapi.staticfiles import StaticFiles
 from config import settings
 from database import init_db
 from routes import transacoes_router, categorias_router, saldo_router, export_dashboard_router
@@ -12,6 +13,9 @@ def startup() -> None:
     """Inicializa o banco de dados na partida."""
     init_db()
 
+
+# Servir arquivos estáticos (CSS, JS, etc.)
+app.mount("/static", StaticFiles(directory="static"), name="static")
 
 app.include_router(transacoes_router)
 app.include_router(categorias_router)
