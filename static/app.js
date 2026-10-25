@@ -6,6 +6,62 @@ function formatCurrency(value) {
     }).format(value);
 }
 
+// Mostra mensagem no formulário
+function showFormMessage(message, isError = false) {
+    const messageDiv = document.getElementById('form-message');
+    messageDiv.textContent = message;
+    messageDiv.className = 'form-message ' + (isError ? 'error' : 'success');
+    messageDiv.style.display = 'block';
+
+    // Esconder após 5 segundos se for sucesso
+    if (!isError) {
+        setTimeout(() => {
+            messageDiv.style.display = 'none';
+        }, 5000);
+    }
+}
+
+// Mostra mensagem de zerar histórico
+function showZerarMessage(message, isError = false) {
+    const messageDiv = document.getElementById('zerar-message');
+    messageDiv.textContent = message;
+    messageDiv.className = 'form-message ' + (isError ? 'error' : 'success');
+    messageDiv.style.display = 'block';
+
+    // Esconder após 5 segundos se for sucesso
+    if (!isError) {
+        setTimeout(() => {
+            messageDiv.style.display = 'none';
+        }, 5000);
+    }
+}
+
+// Define data padrão para hoje
+function setDefaultDate() {
+    const hoje = new Date();
+    const dataFormatada = hoje.toISOString().split('T')[0];
+    document.getElementById('data').value = dataFormatada;
+}
+
+// Busca categorias para preencher o select
+async function fetchCategorias() {
+    try {
+        const response = await fetch('/categorias');
+        if (!response.ok) throw new Error('Erro ao buscar categorias');
+        const categorias = await response.json();
+
+        const select = document.getElementById('categoria');
+        categorias.forEach(cat => {
+            const option = document.createElement('option');
+            option.value = cat.id;
+            option.textContent = cat.nome;
+            select.appendChild(option);
+        });
+    } catch (error) {
+        console.error('Erro ao buscar categorias:', error);
+    }
+}
+
 // Atualiza cards de saldo
 function updateSaldoCards(data) {
     document.getElementById('entradas').textContent = formatCurrency(parseFloat(data.entradas));
@@ -124,12 +180,175 @@ async function fetchResumo() {
     }
 }
 
+// Busca todas as transações
+async function fetchAllTransacoes() {
+    try {
+        const response = await fetch('/transacoes');
+        if (!response.ok) throw new Error('Erro ao buscar transações');
+        return await response.json();
+    } catch (error) {
+        console.error('Erro ao buscar transações:', error);
+        throw error;
+    }
+}
+
+// Deleta transações por tipo
+async function zerarHistorico(tipo) {
+    // tipo: 'entrada', 'saida', ou 'tudo'
+    const btnId = tipo === 'entrada' ? 'btn-zerar-entradas' :
+                  tipo === 'saida' ? 'btn-zerar-saidas' : 'btn-zerar-saldo';
+    const btn = document.getElementById(btnId);
+
+    const confirmMsg = tipo === 'entrada'
+        ? 'Tem certeza que deseja apagar TODAS as entradas? Esta ação não pode ser desfeita.'
+        : tipo === 'saida'
+        ? 'Tem certeza que deseja apagar TODAS as saídas? Esta ação não pode ser desfeita.'
+        : 'Tem certeza que deseja apagar TODO o histórico (todas as transações)? Esta ação não pode ser desfeita.';
+
+    if (!confirm(confirmMsg)) {
+        return;
+    }
+
+    btn.disabled = true;
+    btn.textContent = '⏳';
+
+    try {
+        const transacoes = await fetchAllTransacoes();
+
+        let transacoesParaDeletar;
+        if (tipo === 'tudo') {
+            transacoesParaDeletar = transacoes;
+        } else {
+            transacoesParaDeletar = transacoes.filter(t => t.tipo === tipo);
+        }
+
+        if (transacoesParaDeletar.length === 0) {
+            showZerarMessage(`Nenhuma ${tipo === 'entrada' ? 'entrada' : tipo === 'saida' ? 'saída' : 'transação'} encontrada para apagar.`);
+            return;
+        }
+
+        showZerarMessage(`Apagando ${transacoesParaDeletar.length} transação(ões)...`);
+
+        // Deletar em paralelo (com limite de concorrência para não sobrecarregar)
+        const batchSize = 5;
+        let deleted = 0;
+
+        for (let i = 0; i < transacoesParaDeletar.length; i += batchSize) {
+            const batch = transacoesParaDeletar.slice(i, i + batchSize);
+            await Promise.all(batch.map(t =>
+                fetch(`/transacoes/${t.id}`, { method: 'DELETE' })
+            ));
+            deleted += batch.length;
+            showZerarMessage(`Apagando... ${deleted}/${transacoesParaDeletar.length}`);
+        }
+
+        showZerarMessage(`${transacoesParaDeletar.length} ${tipo === 'entrada' ? 'entrada(s)' : tipo === 'saida' ? 'saída(s)' : 'transação(ões)'} apagada(s) com sucesso!`);
+
+        // Atualizar dashboard
+        await Promise.all([
+            fetchSaldo(),
+            fetchResumo()
+        ]);
+
+    } catch (error) {
+        console.error('Erro ao zerar histórico:', error);
+        showZerarMessage('Erro ao apagar: ' + error.message, true);
+    } finally {
+        btn.disabled = false;
+        btn.textContent = '🗑️';
+    }
+}
+
+// Configura handlers dos botões de zerar
+function setupZerarHandlers() {
+    document.getElementById('btn-zerar-entradas').addEventListener('click', () => zerarHistorico('entrada'));
+    document.getElementById('btn-zerar-saidas').addEventListener('click', () => zerarHistorico('saida'));
+    document.getElementById('btn-zerar-saldo').addEventListener('click', () => zerarHistorico('tudo'));
+}
+
 // Inicializa o dashboard
 async function init() {
     await Promise.all([
         fetchSaldo(),
-        fetchResumo()
+        fetchResumo(),
+        fetchCategorias()
     ]);
+    setDefaultDate();
+    setupFormHandler();
+    setupZerarHandlers();
+}
+
+// Configura handler do formulário
+function setupFormHandler() {
+    const form = document.getElementById('transacao-form');
+    const submitBtn = document.getElementById('btn-submit');
+
+    form.addEventListener('submit', async (e) => {
+        e.preventDefault();
+
+        const formData = new FormData(form);
+        const data = {
+            descricao: formData.get('descricao'),
+            valor: parseFloat(formData.get('valor')),
+            tipo: formData.get('tipo'),
+            data: formData.get('data')
+        };
+
+        const categoriaId = formData.get('categoria');
+        if (categoriaId) {
+            data.categoria_id = parseInt(categoriaId);
+        }
+
+        // Validação básica
+        if (!data.descricao || !data.valor || !data.tipo || !data.data) {
+            showFormMessage('Preencha todos os campos obrigatórios.', true);
+            return;
+        }
+
+        if (data.valor <= 0) {
+            showFormMessage('O valor deve ser maior que zero.', true);
+            return;
+        }
+
+        // Desabilitar botão durante envio
+        submitBtn.disabled = true;
+        submitBtn.textContent = 'Adicionando...';
+
+        try {
+            const response = await fetch('/transacoes', {
+                method: 'POST',
+                headers: {
+                    'Content-Type': 'application/json'
+                },
+                body: JSON.stringify(data)
+            });
+
+            if (!response.ok) {
+                const error = await response.json();
+                throw new Error(error.detail?.[0]?.msg || 'Erro ao criar transação');
+            }
+
+            const result = await response.json();
+            showFormMessage(`Transação "${result.descricao}" adicionada com sucesso!`);
+
+            // Limpar formulário
+            form.reset();
+            setDefaultDate();
+
+            // Atualizar dashboard
+            await Promise.all([
+                fetchSaldo(),
+                fetchResumo()
+            ]);
+
+        } catch (error) {
+            console.error('Erro ao criar transação:', error);
+            showFormMessage('Erro: ' + error.message, true);
+        } finally {
+            submitBtn.disabled = false;
+            submitBtn.textContent = 'Adicionar Transação';
+        }
+    });
 }
 
 // Executar quando o DOM estiver pronto

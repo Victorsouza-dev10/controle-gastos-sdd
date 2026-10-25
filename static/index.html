@@ -16,18 +16,29 @@
 
         <div class="cards">
             <div class="card entradas">
-                <h3>Entradas</h3>
+                <div class="card-header">
+                    <h3>Entradas</h3>
+                    <button type="button" class="btn btn-danger btn-sm" id="btn-zerar-entradas" title="Zerar todas as entradas">🗑️</button>
+                </div>
                 <div class="value" id="entradas">R$ 0,00</div>
             </div>
             <div class="card saidas">
-                <h3>Saídas</h3>
+                <div class="card-header">
+                    <h3>Saídas</h3>
+                    <button type="button" class="btn btn-danger btn-sm" id="btn-zerar-saidas" title="Zerar todas as saídas">🗑️</button>
+                </div>
                 <div class="value" id="saidas">R$ 0,00</div>
             </div>
             <div class="card saldo" id="saldo-card">
-                <h3>Saldo</h3>
+                <div class="card-header">
+                    <h3>Saldo</h3>
+                    <button type="button" class="btn btn-danger btn-sm" id="btn-zerar-saldo" title="Zerar todo o histórico (todas as transações)">🗑️</button>
+                </div>
                 <div class="value" id="saldo">R$ 0,00</div>
             </div>
         </div>
+
+        <div id="zerar-message" class="form-message" style="display: none;"></div>
 
         <div class="chart-container">
             <h2>Gastos por Categoria (Mês Atual)</h2>
@@ -36,6 +47,48 @@
             </div>
             <div id="chart-loading" class="loading">Carregando gráfico...</div>
             <div id="chart-error" class="error" style="display: none;"></div>
+        </div>
+
+        <div class="form-container" id="nova-transacao-form">
+            <h2>Nova Transação</h2>
+            <form id="transacao-form">
+                <div class="form-row">
+                    <div class="form-group">
+                        <label for="descricao">Descrição *</label>
+                        <input type="text" id="descricao" name="descricao" required maxlength="200" placeholder="Ex: Supermercado, Salário, etc.">
+                    </div>
+                    <div class="form-group">
+                        <label for="valor">Valor *</label>
+                        <input type="number" id="valor" name="valor" required step="0.01" min="0.01" placeholder="0,00">
+                    </div>
+                </div>
+                <div class="form-row">
+                    <div class="form-group">
+                        <label for="tipo">Tipo *</label>
+                        <select id="tipo" name="tipo" required>
+                            <option value="">Selecione...</option>
+                            <option value="entrada">Entrada</option>
+                            <option value="saida">Saída</option>
+                        </select>
+                    </div>
+                    <div class="form-group">
+                        <label for="categoria">Categoria</label>
+                        <select id="categoria" name="categoria">
+                            <option value="">Sem categoria</option>
+                        </select>
+                    </div>
+                </div>
+                <div class="form-row">
+                    <div class="form-group">
+                        <label for="data">Data *</label>
+                        <input type="date" id="data" name="data" required>
+                    </div>
+                </div>
+                <div class="form-actions">
+                    <button type="submit" class="btn btn-primary" id="btn-submit">Adicionar Transação</button>
+                </div>
+                <div id="form-message" class="form-message" style="display: none;"></div>
+            </form>
         </div>
     </div>
 
